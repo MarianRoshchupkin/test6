@@ -200,16 +200,23 @@ pipeline {
       }
     }
   }
-
   post {
     always {
-      sh '''
-        set +e
-        docker system df || true
-      '''
+      script {
+        node {
+          sh '''
+            set +e
+            docker system df || true
+          '''
+        }
+      }
     }
     cleanup {
-      cleanWs(deleteDirs: true, notFailBuild: true)
+      script {
+        node {
+          cleanWs(deleteDirs: true, notFailBuild: true)
+        }
+      }
     }
   }
 }
