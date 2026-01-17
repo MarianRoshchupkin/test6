@@ -23,7 +23,7 @@ pipeline {
 
   environment {
     APP_VERSION = "${env.GIT_COMMIT ? env.GIT_COMMIT.take(7) : 'local'}-${env.BUILD_NUMBER}"
-    HTTP_PORT = "${18080 + (env.BUILD_NUMBER as Integer) % 1000}"
+    HTTP_PORT = "${18081 + (env.BUILD_NUMBER as Integer) % 1000}"
     CI = "true"
   }
 
