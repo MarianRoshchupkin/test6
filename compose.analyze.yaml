@@ -1,0 +1,12 @@
+services:
+  analyze:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: analyze
+    ports:
+      - "8888:8888"
+    environment:
+      ANALYZE: "true"
+    stdin_open: true
+    tty: true
