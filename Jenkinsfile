@@ -154,16 +154,18 @@ pipeline {
             exit 1
           fi
 
-          echo "HTTP smoke check: GET http://localhost:${HTTP_PORT}/"
+          echo "HTTP smoke check inside container: GET http://localhost:8080/"
 
-          if command -v wget >/dev/null 2>&1; then
-            wget -qO- "http://localhost:${HTTP_PORT}/" >/dev/null
-          elif command -v curl >/dev/null 2>&1; then
-            curl -fsS "http://localhost:${HTTP_PORT}/" >/dev/null
-          else
-            echo "Neither wget nor curl found on agent."
-            exit 1
-          fi
+          $COMPOSE -f compose.yaml exec -T web sh -lc '
+            if command -v wget >/dev/null 2>&1; then
+              wget -qO- http://localhost:8080/ >/dev/null
+            elif command -v curl >/dev/null 2>&1; then
+              curl -fsS http://localhost:8080/ >/dev/null
+            else
+              echo "Neither wget nor curl in container."
+              exit 1
+            fi
+          '
 
           echo "Smoke passed."
         '''
