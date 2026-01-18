@@ -28,6 +28,21 @@ pipeline {
   }
 
   stages {
+    stage('Init') {
+      steps {
+        script {
+          def bn = (env.BUILD_NUMBER ?: '0').toInteger()
+          def sha = (env.GIT_COMMIT ? env.GIT_COMMIT.take(7) : 'local')
+
+          env.APP_VERSION = "${sha}-${bn}"
+          env.HTTP_PORT  = "${18081 + (bn % 1000)}"
+
+          echo "Init: APP_VERSION=${env.APP_VERSION}"
+          echo "Init: HTTP_PORT=${env.HTTP_PORT}"
+        }
+      }
+    }
+
     stage('Checkout') {
       steps {
         checkout scm
