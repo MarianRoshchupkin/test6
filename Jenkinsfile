@@ -117,15 +117,18 @@ pipeline {
             exit 1
           fi
 
+          PROJECT="ci${BUILD_NUMBER}"
+          echo "Compose project: $PROJECT"
+
           echo "Starting web via compose.yaml on port ${HTTP_PORT}..."
-          APP_VERSION="${APP_VERSION}" HTTP_PORT="${HTTP_PORT}" $COMPOSE -f compose.yaml up -d --build web
+          APP_VERSION="${APP_VERSION}" HTTP_PORT="${HTTP_PORT}" $COMPOSE -p "$PROJECT" -f compose.yaml up -d --build web
 
           echo "Waiting for container to become healthy..."
-          CID=$($COMPOSE -f compose.yaml ps -q web)
+          CID=$($COMPOSE -p "$PROJECT" -f compose.yaml ps -q web)
 
           if [ -z "$CID" ]; then
             echo "Failed to get container id for service web"
-            $COMPOSE -f compose.yaml ps
+            $COMPOSE -p "$PROJECT" -f compose.yaml ps
             exit 1
           fi
 
@@ -139,7 +142,7 @@ pipeline {
 
             if [ "$STATUS" = "unhealthy" ]; then
               echo "Container is unhealthy. Logs:"
-              $COMPOSE -f compose.yaml logs --no-color web || true
+              $COMPOSE -p "$PROJECT" -f compose.yaml logs --no-color web || true
               exit 1
             fi
 
@@ -147,27 +150,28 @@ pipeline {
           done
 
           STATUS=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}nohealth{{end}}' "$CID" 2>/dev/null || echo "unknown")
-
           if [ "$STATUS" != "healthy" ]; then
             echo "Timed out waiting for healthy. Current status: $STATUS"
-            $COMPOSE -f compose.yaml logs --no-color web || true
+            $COMPOSE -p "$PROJECT" -f compose.yaml logs --no-color web || true
             exit 1
           fi
 
-          echo "HTTP smoke check inside container: GET http://localhost:8080/"
+          echo "HTTP smoke check via service DNS inside compose network: GET http://web:8080/"
+          NET="${PROJECT}_default"
 
-          $COMPOSE -f compose.yaml exec -T web sh -lc '
-            if command -v wget >/dev/null 2>&1; then
-              wget -qO- http://localhost:8080/ >/dev/null
-            elif command -v curl >/dev/null 2>&1; then
-              curl -fsS http://localhost:8080/ >/dev/null
-            else
-              echo "Neither wget nor curl in container."
-              exit 1
+          # небольшая страховка от кратких гонок/ресолва
+          for i in $(seq 1 10); do
+            if docker run --rm --network "$NET" curlimages/curl:8.5.0 -fsS http://web:8080/ >/dev/null 2>&1; then
+              echo "Smoke passed."
+              exit 0
             fi
-          '
+            echo "Smoke not ready yet (attempt $i/10); sleeping..."
+            sleep 1
+          done
 
-          echo "Smoke passed."
+          echo "Smoke failed after retries. Service logs:"
+          $COMPOSE -p "$PROJECT" -f compose.yaml logs --no-color web || true
+          exit 1
         '''
       }
       post {
@@ -183,8 +187,10 @@ pipeline {
               exit 0
             fi
 
-            APP_VERSION="${APP_VERSION}" HTTP_PORT="${HTTP_PORT}" $COMPOSE -f compose.yaml logs --no-color web || true
-            APP_VERSION="${APP_VERSION}" HTTP_PORT="${HTTP_PORT}" $COMPOSE -f compose.yaml down -v || true
+            PROJECT="ci${BUILD_NUMBER}"
+
+            APP_VERSION="${APP_VERSION}" HTTP_PORT="${HTTP_PORT}" $COMPOSE -p "$PROJECT" -f compose.yaml logs --no-color web || true
+            APP_VERSION="${APP_VERSION}" HTTP_PORT="${HTTP_PORT}" $COMPOSE -p "$PROJECT" -f compose.yaml down -v || true
           '''
         }
       }
